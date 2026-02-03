@@ -164,7 +164,6 @@ namespace Trayscout
         {
             if (!_diagramOpened)
             {
-                _diagramOpened = true;
                 IList<Entry> entries;
                 try
                 {
@@ -175,6 +174,7 @@ namespace Trayscout
                     HandleConnectivityIssue(ex);
                     return;
                 }
+                _diagramOpened = true;
                 DateTime maxTimestamp = entries.Max(x => x.Timestamp);
                 DateTime minTimestamp = maxTimestamp.AddHours(-(_config.TimeRange + 5));
                 entries = entries.Where(x => x.Timestamp >= minTimestamp).ToList();
