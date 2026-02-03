@@ -184,7 +184,7 @@ namespace Trayscout
                 DateTime minTimestamp = maxTimestamp.AddHours(-(_config.TimeRange + 5));
                 entries = entries.Where(x => x.Timestamp >= minTimestamp).ToList();
                 _diagram = new GlucoseDiagram(_config, entries);
-                _diagram.LostFocus += CloseDiagram;
+                _diagram.FormClosed += HandleDiagramClosed;
                 _diagram.Show();
                 _diagram.Activate();
             }
@@ -208,10 +208,9 @@ namespace Trayscout
             }
         }
 
-        private void CloseDiagram(object sender, EventArgs e)
+        private void HandleDiagramClosed(object sender, FormClosedEventArgs e)
         {
-            _diagram.Close();
-            _diagram.Dispose();
+            _diagram?.Dispose();
             _diagram = null;
             _diagramOpened = false;
         }

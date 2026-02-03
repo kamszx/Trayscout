@@ -29,6 +29,8 @@ namespace Trayscout
             PictureBox.MouseDown += HandleMouseDown;
             PictureBox.MouseMove += HandleMouseMove;
             PictureBox.MouseUp += HandleMouseUp;
+            MouseUp += HandleRightClickClose;
+            PictureBox.MouseUp += HandleRightClickClose;
         }
 
         private void HandleMouseDown(object sender, MouseEventArgs e)
@@ -61,6 +63,14 @@ namespace Trayscout
             if (e.Button == MouseButtons.Left)
             {
                 _isDragging = false;
+            }
+        }
+
+        private void HandleRightClickClose(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Right)
+            {
+                Close();
             }
         }
     }
