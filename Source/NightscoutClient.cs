@@ -17,6 +17,7 @@ namespace Trayscout
         private NotifyIcon _trayIcon;
         private Timer _timer;
         private DateTime _lastAlarm;
+        private DateTime _lastConnectivityNotification;
         private Bitmap _symbols;
         private GlucoseDiagram _diagram;
         private bool _diagramOpened;
@@ -88,17 +89,13 @@ namespace Trayscout
             }
             catch (Exception ex)
             {
-                if (ex is NightscoutException || firstRun)
+                if (_trayIcon == null)
                 {
-                    while (ex.InnerException != null)
-                        ex = ex.InnerException;
-                    MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    throw;
+                    entry = new Entry(DateTime.Now, 0, _config.Unit, Trend.None);
+                    SetIcon(entry);
                 }
-                else
-                {
-                    entry = new Entry(DateTime.Now, 0, _config.Unit, Trend.Flat);
-                }
+                HandleConnectivityIssue(ex);
+                return;
             }
             SetIcon(entry);
             SetAlarm(entry);
@@ -175,9 +172,7 @@ namespace Trayscout
                 }
                 catch (Exception ex)
                 {
-                    while (ex.InnerException != null)
-                        ex = ex.InnerException;
-                    MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    HandleConnectivityIssue(ex);
                     return;
                 }
                 DateTime maxTimestamp = entries.Max(x => x.Timestamp);
@@ -213,6 +208,34 @@ namespace Trayscout
             _diagram?.Dispose();
             _diagram = null;
             _diagramOpened = false;
+        }
+
+        private void HandleConnectivityIssue(Exception ex)
+        {
+            if (!ShouldNotifyConnectivityIssue())
+                return;
+
+            Exception root = ex;
+            while (root.InnerException != null)
+                root = root.InnerException;
+
+            string message = "Connectivity issue detected. The app will keep retrying.\n" + root.Message;
+
+            if (_trayIcon != null)
+            {
+                _trayIcon.BalloonTipTitle = "Network unavailable";
+                _trayIcon.BalloonTipText = message;
+                _trayIcon.BalloonTipIcon = ToolTipIcon.Warning;
+                _trayIcon.ShowBalloonTip(5000);
+            }
+
+            _lastConnectivityNotification = DateTime.Now;
+        }
+
+        private bool ShouldNotifyConnectivityIssue()
+        {
+            int intervalMinutes = Math.Max(1, _config.UpdateInterval);
+            return DateTime.Now >= _lastConnectivityNotification.AddMinutes(intervalMinutes);
         }
 
         private void DisposeTrayIcon()
