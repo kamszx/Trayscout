@@ -10,6 +10,9 @@ namespace Trayscout
         [DllImport("kernel32", CharSet = CharSet.Unicode)]
         static extern int GetPrivateProfileString(string Section, string Key, string Default, StringBuilder RetVal, int Size, string FilePath);
 
+        [DllImport("kernel32", CharSet = CharSet.Unicode)]
+        static extern bool WritePrivateProfileString(string Section, string Key, string Value, string FilePath);
+
         private string _filePath { get; }
 
         public Ini(string filePath)
@@ -56,6 +59,32 @@ namespace Trayscout
             if (!Enum.TryParse(value, out T enumValue))
                 throw new Exception(key + " is not valid.");
             return enumValue;
+        }
+
+        public void WriteString(string section, string key, string value)
+        {
+            if (!WritePrivateProfileString(section, key, value, _filePath))
+                throw new Exception("Failed to write " + key + ".");
+        }
+
+        public void WriteInt(string section, string key, int value)
+        {
+            WriteString(section, key, value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        public void WriteFloat(string section, string key, float value)
+        {
+            WriteString(section, key, value.ToString(CultureInfo.InvariantCulture));
+        }
+
+        public void WriteBool(string section, string key, bool value)
+        {
+            WriteString(section, key, value ? "1" : "0");
+        }
+
+        public void WriteEnum<T>(string section, string key, T value) where T : struct
+        {
+            WriteString(section, key, value.ToString());
         }
     }
 }
