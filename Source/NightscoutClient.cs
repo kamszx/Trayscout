@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using NAudio.Wave;
 
@@ -12,6 +13,9 @@ namespace Trayscout
 {
     public class NightscoutClient : ApplicationContext
     {
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
         private Configuration _config;
         private HttpClient _client;
         private NotifyIcon _trayIcon;
@@ -169,7 +173,12 @@ namespace Trayscout
                     }
                 }
 
-                ico = Icon.FromHandle(bmp.GetHicon());
+                IntPtr hIcon = bmp.GetHicon();
+                using (Icon icon = Icon.FromHandle(hIcon))
+                {
+                    ico = (Icon)icon.Clone();
+                }
+                DestroyIcon(hIcon);
             }
 
             DisposeTrayIcon();
@@ -216,8 +225,13 @@ namespace Trayscout
 
                 if (File.Exists(alarm))
                 {
-                    WaveOut waveOut = new WaveOut();
+                    WaveOutEvent waveOut = new WaveOutEvent();
                     AudioFileReader audioFileReader = new AudioFileReader(alarm);
+                    waveOut.PlaybackStopped += (sender, args) =>
+                    {
+                        audioFileReader.Dispose();
+                        waveOut.Dispose();
+                    };
                     waveOut.Init(audioFileReader);
                     waveOut.Play();
                     _lastAlarm = DateTime.Now;
@@ -265,7 +279,7 @@ namespace Trayscout
             if (_trayIcon != null)
             {
                 _trayIcon.Visible = false;
-                _trayIcon.Click += OpenGlucoseDiagram;
+                _trayIcon.Click -= OpenGlucoseDiagram;
                 _trayIcon.Dispose();
                 _trayIcon = null;
             }
