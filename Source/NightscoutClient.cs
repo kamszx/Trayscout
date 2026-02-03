@@ -25,6 +25,7 @@ namespace Trayscout
         private Bitmap _symbols;
         private GlucoseDiagram _diagram;
         private bool _diagramOpened;
+        private SettingsForm _settingsForm;
 
         public NightscoutClient()
         {
@@ -185,7 +186,7 @@ namespace Trayscout
             _trayIcon = new NotifyIcon()
             {
                 Icon = ico,
-                ContextMenu = new ContextMenu(new MenuItem[] { new MenuItem("Exit", Exit) }),
+                ContextMenu = new ContextMenu(new MenuItem[] { new MenuItem("Settings", OpenSettings), new MenuItem("Exit", Exit) }),
                 Visible = true
             };
             _trayIcon.Click += OpenGlucoseDiagram;
@@ -283,6 +284,48 @@ namespace Trayscout
                 _trayIcon.Dispose();
                 _trayIcon = null;
             }
+        }
+
+        private void OpenSettings(object sender, EventArgs e)
+        {
+            if (_settingsForm != null && !_settingsForm.IsDisposed)
+            {
+                _settingsForm.Activate();
+                return;
+            }
+
+            Ini ini = GetIni();
+            _settingsForm = new SettingsForm(ini, ReloadConfiguration);
+            _settingsForm.FormClosed += (formSender, args) => _settingsForm = null;
+            _settingsForm.Show();
+            _settingsForm.Activate();
+        }
+
+        private void ReloadConfiguration()
+        {
+            Ini ini = GetIni();
+            _config = new Configuration(ini);
+
+            if (_client == null)
+            {
+                _client = new HttpClient();
+            }
+
+            _client.BaseAddress = new Uri(_config.BaseUrl);
+            _client.DefaultRequestHeaders.Remove("API-Secret");
+            _client.DefaultRequestHeaders.Add("API-Secret", _config.ApiSecretHash);
+
+            if (_timer != null)
+            {
+                _timer.Interval = 1000 * 60 * _config.UpdateInterval;
+            }
+
+            if (_diagramOpened)
+            {
+                _diagram?.Close();
+            }
+
+            Update(true);
         }
 
         private void Exit(object sender, EventArgs e)
