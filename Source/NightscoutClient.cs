@@ -306,13 +306,11 @@ namespace Trayscout
             Ini ini = GetIni();
             _config = new Configuration(ini);
 
-            if (_client == null)
+            _client?.Dispose();
+            _client = new HttpClient
             {
-                _client = new HttpClient();
-            }
-
-            _client.BaseAddress = new Uri(_config.BaseUrl);
-            _client.DefaultRequestHeaders.Remove("API-Secret");
+                BaseAddress = new Uri(_config.BaseUrl)
+            };
             _client.DefaultRequestHeaders.Add("API-Secret", _config.ApiSecretHash);
 
             if (_timer != null)
