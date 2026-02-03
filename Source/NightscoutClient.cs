@@ -99,6 +99,28 @@ namespace Trayscout
             }
             SetIcon(entry);
             SetAlarm(entry);
+            UpdateDiagram();
+        }
+
+        private void UpdateDiagram()
+        {
+            if (!_diagramOpened || _diagram == null)
+            {
+                return;
+            }
+
+            try
+            {
+                IList<Entry> entries = GetLatestEntries(_config.TimeRange * 60);
+                DateTime maxTimestamp = entries.Max(x => x.Timestamp);
+                DateTime minTimestamp = maxTimestamp.AddHours(-(_config.TimeRange + 5));
+                entries = entries.Where(x => x.Timestamp >= minTimestamp).ToList();
+                _diagram.UpdateEntries(entries);
+            }
+            catch (Exception ex)
+            {
+                HandleConnectivityIssue(ex);
+            }
         }
 
         private Entry GetLatestEntry()
