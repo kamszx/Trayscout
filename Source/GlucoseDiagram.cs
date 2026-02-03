@@ -8,11 +8,13 @@ namespace Trayscout
     {
         private bool _isDragging;
         private Point _dragOffset;
+        private readonly Configuration _config;
 
         public GlucoseDiagram(Configuration config, IList<Entry> entries)
         {
             InitializeComponent();
 
+            _config = config;
             Width = config.Width;
             Height = config.Height;
             PictureBox.Width = config.Width;
@@ -21,7 +23,7 @@ namespace Trayscout
             Size screenSize = Screen.PrimaryScreen.WorkingArea.Size;
             Location = new Point(screenSize.Width - Width - 16, screenSize.Height - Height - 16);
 
-            PictureBox.Image = config.Style.DrawDiagram(config, entries);
+            UpdateEntries(entries);
 
             MouseDown += HandleMouseDown;
             MouseMove += HandleMouseMove;
@@ -31,6 +33,13 @@ namespace Trayscout
             PictureBox.MouseUp += HandleMouseUp;
             MouseUp += HandleRightClickClose;
             PictureBox.MouseUp += HandleRightClickClose;
+        }
+
+        public void UpdateEntries(IList<Entry> entries)
+        {
+            Image previousImage = PictureBox.Image;
+            PictureBox.Image = _config.Style.DrawDiagram(_config, entries);
+            previousImage?.Dispose();
         }
 
         private void HandleMouseDown(object sender, MouseEventArgs e)
