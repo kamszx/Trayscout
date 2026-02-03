@@ -69,7 +69,13 @@ namespace Trayscout
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Timestamp, Value);
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 23 + Timestamp.GetHashCode();
+                hash = hash * 23 + Value.GetHashCode();
+                return hash;
+            }
         }
     }
 }
