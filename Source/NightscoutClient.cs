@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using NAudio.Wave;
 
@@ -12,14 +13,19 @@ namespace Trayscout
 {
     public class NightscoutClient : ApplicationContext
     {
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
         private Configuration _config;
         private HttpClient _client;
         private NotifyIcon _trayIcon;
         private Timer _timer;
         private DateTime _lastAlarm;
+        private DateTime _lastConnectivityNotification;
         private Bitmap _symbols;
         private GlucoseDiagram _diagram;
         private bool _diagramOpened;
+        private SettingsForm _settingsForm;
 
         public NightscoutClient()
         {
@@ -88,20 +94,38 @@ namespace Trayscout
             }
             catch (Exception ex)
             {
-                if (ex is NightscoutException || firstRun)
+                if (_trayIcon == null)
                 {
-                    while (ex.InnerException != null)
-                        ex = ex.InnerException;
-                    MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    throw;
+                    entry = new Entry(DateTime.Now, 0, _config.Unit, Trend.None);
+                    SetIcon(entry);
                 }
-                else
-                {
-                    entry = new Entry(DateTime.Now, 0, _config.Unit, Trend.Flat);
-                }
+                HandleConnectivityIssue(ex);
+                return;
             }
             SetIcon(entry);
             SetAlarm(entry);
+            UpdateDiagram();
+        }
+
+        private void UpdateDiagram()
+        {
+            if (!_diagramOpened || _diagram == null)
+            {
+                return;
+            }
+
+            try
+            {
+                IList<Entry> entries = GetLatestEntries(_config.TimeRange * 60);
+                DateTime maxTimestamp = entries.Max(x => x.Timestamp);
+                DateTime minTimestamp = maxTimestamp.AddHours(-(_config.TimeRange + 5));
+                entries = entries.Where(x => x.Timestamp >= minTimestamp).ToList();
+                _diagram.UpdateEntries(entries);
+            }
+            catch (Exception ex)
+            {
+                HandleConnectivityIssue(ex);
+            }
         }
 
         private Entry GetLatestEntry()
@@ -150,14 +174,19 @@ namespace Trayscout
                     }
                 }
 
-                ico = Icon.FromHandle(bmp.GetHicon());
+                IntPtr hIcon = bmp.GetHicon();
+                using (Icon icon = Icon.FromHandle(hIcon))
+                {
+                    ico = (Icon)icon.Clone();
+                }
+                DestroyIcon(hIcon);
             }
 
             DisposeTrayIcon();
             _trayIcon = new NotifyIcon()
             {
                 Icon = ico,
-                ContextMenu = new ContextMenu(new MenuItem[] { new MenuItem("Exit", Exit) }),
+                ContextMenu = new ContextMenu(new MenuItem[] { new MenuItem("Settings", OpenSettings), new MenuItem("Exit", Exit) }),
                 Visible = true
             };
             _trayIcon.Click += OpenGlucoseDiagram;
@@ -167,7 +196,6 @@ namespace Trayscout
         {
             if (!_diagramOpened)
             {
-                _diagramOpened = true;
                 IList<Entry> entries;
                 try
                 {
@@ -175,16 +203,15 @@ namespace Trayscout
                 }
                 catch (Exception ex)
                 {
-                    while (ex.InnerException != null)
-                        ex = ex.InnerException;
-                    MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    HandleConnectivityIssue(ex);
                     return;
                 }
+                _diagramOpened = true;
                 DateTime maxTimestamp = entries.Max(x => x.Timestamp);
                 DateTime minTimestamp = maxTimestamp.AddHours(-(_config.TimeRange + 5));
                 entries = entries.Where(x => x.Timestamp >= minTimestamp).ToList();
                 _diagram = new GlucoseDiagram(_config, entries);
-                _diagram.LostFocus += CloseDiagram;
+                _diagram.FormClosed += HandleDiagramClosed;
                 _diagram.Show();
                 _diagram.Activate();
             }
@@ -199,8 +226,13 @@ namespace Trayscout
 
                 if (File.Exists(alarm))
                 {
-                    WaveOut waveOut = new WaveOut();
+                    WaveOutEvent waveOut = new WaveOutEvent();
                     AudioFileReader audioFileReader = new AudioFileReader(alarm);
+                    waveOut.PlaybackStopped += (sender, args) =>
+                    {
+                        audioFileReader.Dispose();
+                        waveOut.Dispose();
+                    };
                     waveOut.Init(audioFileReader);
                     waveOut.Play();
                     _lastAlarm = DateTime.Now;
@@ -208,12 +240,39 @@ namespace Trayscout
             }
         }
 
-        private void CloseDiagram(object sender, EventArgs e)
+        private void HandleDiagramClosed(object sender, FormClosedEventArgs e)
         {
-            _diagram.Close();
-            _diagram.Dispose();
+            _diagram?.Dispose();
             _diagram = null;
             _diagramOpened = false;
+        }
+
+        private void HandleConnectivityIssue(Exception ex)
+        {
+            if (!ShouldNotifyConnectivityIssue())
+                return;
+
+            Exception root = ex;
+            while (root.InnerException != null)
+                root = root.InnerException;
+
+            string message = "Connectivity issue detected. The app will keep retrying.\n" + root.Message;
+
+            if (_trayIcon != null)
+            {
+                _trayIcon.BalloonTipTitle = "Network unavailable";
+                _trayIcon.BalloonTipText = message;
+                _trayIcon.BalloonTipIcon = ToolTipIcon.Warning;
+                _trayIcon.ShowBalloonTip(5000);
+            }
+
+            _lastConnectivityNotification = DateTime.Now;
+        }
+
+        private bool ShouldNotifyConnectivityIssue()
+        {
+            int intervalMinutes = Math.Max(1, _config.UpdateInterval);
+            return DateTime.Now >= _lastConnectivityNotification.AddMinutes(intervalMinutes);
         }
 
         private void DisposeTrayIcon()
@@ -221,10 +280,50 @@ namespace Trayscout
             if (_trayIcon != null)
             {
                 _trayIcon.Visible = false;
-                _trayIcon.Click += OpenGlucoseDiagram;
+                _trayIcon.Click -= OpenGlucoseDiagram;
                 _trayIcon.Dispose();
                 _trayIcon = null;
             }
+        }
+
+        private void OpenSettings(object sender, EventArgs e)
+        {
+            if (_settingsForm != null && !_settingsForm.IsDisposed)
+            {
+                _settingsForm.Activate();
+                return;
+            }
+
+            Ini ini = GetIni();
+            _settingsForm = new SettingsForm(ini, ReloadConfiguration);
+            _settingsForm.FormClosed += (formSender, args) => _settingsForm = null;
+            _settingsForm.Show();
+            _settingsForm.Activate();
+        }
+
+        private void ReloadConfiguration()
+        {
+            Ini ini = GetIni();
+            _config = new Configuration(ini);
+
+            _client?.Dispose();
+            _client = new HttpClient
+            {
+                BaseAddress = new Uri(_config.BaseUrl)
+            };
+            _client.DefaultRequestHeaders.Add("API-Secret", _config.ApiSecretHash);
+
+            if (_timer != null)
+            {
+                _timer.Interval = 1000 * 60 * _config.UpdateInterval;
+            }
+
+            if (_diagramOpened)
+            {
+                _diagram?.Close();
+            }
+
+            Update(true);
         }
 
         private void Exit(object sender, EventArgs e)

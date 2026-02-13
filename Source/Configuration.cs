@@ -66,8 +66,11 @@ namespace Trayscout
 
         private string Sha1(string input)
         {
-            byte[] hash = new SHA1Managed().ComputeHash(Encoding.UTF8.GetBytes(input));
-            return string.Concat(hash.Select(b => b.ToString("x2")));
+            using (SHA1 sha1 = SHA1.Create())
+            {
+                byte[] hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(input));
+                return string.Concat(hash.Select(b => b.ToString("x2")));
+            }
         }
     }
 }
