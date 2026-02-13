@@ -1,4 +1,13 @@
-# Trayscout
+# New / changed features
+- **Floating diagram behavior**: The diagram opens as a single borderless always-on-top window (next clicks on tray icon do not open duplicates).
+- **Close and move the diagram**: Drag with **left mouse button** to move the window; click **right mouse button** on the diagram to close it.
+- **Diagram refresh while open**: The glucose chart keeps updating while the diagram window is open.
+- **Settings window from tray menu**: Right click the tray icon and open **Settings** to edit all configuration values from the app UI.
+- **Live configuration reload**: Saving settings applies changes immediately (including API connection, refresh interval, and chart options) without manually restarting the app.
+- **Connectivity warning notifications**: If Nightscout is temporarily unavailable, Trayscout shows a warning balloon and continues retrying automatically.
+- **Automatic Nightscout API URL normalization**: `BaseUrl` is normalized automatically, so both root URLs and direct API URLs are supported.
+
+## Trayscout
 This lightweight Nightscout client for Windows will display your latest blood glucose value and trend in the system tray. If you click on the icon, a blood glucose diagram will be shown. Multiple styles/schemes are supported to better fit into your artificial pancreas system.
 
 ![Preview](Preview.png)
@@ -25,6 +34,9 @@ How to use:
 - Open Config.ini in Notepad > Set at least BaseUrl and APISecret > Save and close
 - Run Trayscout.exe, now you should see your blood glucose value in the system tray
   - If not, an error window should pop up and tell you what's wrong
+  - **Optional: right click the tray icon and open Settings to edit values in a form instead of manually editing `Config.ini`**
+  - **Left click tray icon to open the glucose diagram window**
+  - **In the diagram: hold left mouse button to drag/move it, right click to close it**
 
 Always display tray icon:
 - Right click on taskbar > Taskbar settings > Notification area > Select which icons appear on the taskbar
